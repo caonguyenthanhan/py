@@ -1,0 +1,184 @@
+import pygame
+from Speech_to_Speech import recognize_speech, text_to_speech
+from googletrans import Translator
+import os
+from datetime import datetime
+
+# Initialize Pygame
+pygame.init()
+
+# Set window dimensions
+window_width = 400
+window_height = 950  # Increased height for language selection and displays
+screen = pygame.display.set_mode((window_width, window_height))
+pygame.display.set_caption("Speech-to-Speech App")
+
+# Colors
+white = (255, 255, 255)
+black = (0, 0, 0)
+gray = (128, 128, 128)
+
+# Button dimensions
+button_width = 150
+button_height = 50
+
+# Create buttons
+start_button = pygame.Rect((window_width - button_width) // 2, 50, button_width, button_height)
+stop_button = pygame.Rect((window_width - button_width) // 2, 120, button_width, button_height)
+
+# Language selection buttons (two columns)
+language_buttons_source = []
+language_buttons_target = []
+languages = ["Vietnamese", "Japanese", "English", "French", "Spanish", "Korean: 한국어", "Chinese: 中文", "German: Deutsch", "Italian: Italiano", "Portuguese: Português", "Russian: Русский", "Arabic: العربية", "Hindi: हिन्दी"]
+for i, lang in enumerate(languages):
+    button_source = pygame.Rect(20, 200 + i * 60, button_width, button_height)
+    button_target = pygame.Rect(window_width - button_width - 20, 200 + i * 60, button_width, button_height)
+    language_buttons_source.append(button_source)
+    language_buttons_target.append(button_target)
+
+# Button labels
+font = pygame.font.Font(None, 36)
+start_text = font.render("Start Listening", True, black)
+stop_text = font.render("Stop", True, black)
+language_texts = [font.render(lang, True, black) for lang in languages]
+
+# Language displays
+display_source_lang = "Vietnamese"
+display_target_lang = "Japanese"
+source_lang_display = pygame.Rect(20, 380, button_width, button_height)
+target_lang_display = pygame.Rect(window_width - button_width - 20, 380, button_width, button_height)
+source_lang_text = font.render(display_source_lang, True, black)
+target_lang_text = font.render(display_target_lang, True, black)
+
+# Initial language
+source_lang = "vi"
+target_lang = "ja"
+
+# Initialize translator
+translator = Translator()
+
+# Translation history
+translation_history = []
+
+# Main loop
+running = True
+is_recording = False
+stamp = 0
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if start_button.collidepoint(event.pos):
+                is_recording = True
+                print("Start recording...")
+            if stop_button.collidepoint(event.pos):
+                is_recording = False
+                print("Stop recording.")
+            for i, button in enumerate(language_buttons_source):
+                if button.collidepoint(event.pos):
+                    if i == 0:  # Vietnamese
+                        source_lang = "vi"
+                        display_source_lang = "Vietnamese"
+                    elif i == 1:  # Japanese
+                        source_lang = "ja"
+                        display_source_lang = "Japanese"
+                    else:
+                        source_lang = translator.detect(languages[i]).lang
+                        display_source_lang = languages[i]
+
+                    # If already recording, restart with the new source language
+                    if is_recording:
+                        is_recording = False
+                        pygame.mixer.music.stop()
+                        is_recording = True
+                        print("Start recording...")
+
+                    # Update language display texts
+                    source_lang_text = font.render(display_source_lang, True, black)
+
+            for i, button in enumerate(language_buttons_target):
+                if button.collidepoint(event.pos):
+                    if i == 0:  # Vietnamese
+                        target_lang = "vi"
+                        display_target_lang = "Vietnamese"
+                    elif i == 1:  # Japanese
+                        target_lang = "ja"
+                        display_target_lang = "Japanese"
+                    else:
+                        target_lang = translator.detect(languages[i]).lang
+                        display_target_lang = languages[i]
+
+                    # If already recording, restart with the new target language
+                    if is_recording:
+                        is_recording = False
+                        pygame.mixer.music.stop()
+                        is_recording = True
+                        print("Start recording...")
+
+                    # Update language display texts
+                    target_lang_text = font.render(display_target_lang, True, black)
+
+    # Fill the screen with white
+    screen.fill(white)
+
+    # Draw buttons
+    pygame.draw.rect(screen, gray, start_button)
+    screen.blit(start_text, (start_button.x + 10, start_button.y + 10))
+    pygame.draw.rect(screen, gray, stop_button)
+    screen.blit(stop_text, (stop_button.x + 10, stop_button.y + 10))
+    for i, button in enumerate(language_buttons_source):
+        pygame.draw.rect(screen, gray, button)
+        screen.blit(language_texts[i], (button.x + 10, button.y + 10))
+    for i, button in enumerate(language_buttons_target):
+        pygame.draw.rect(screen, gray, button)
+        screen.blit(language_texts[i], (button.x + 10, button.y + 10))
+
+    # Draw language displays
+    pygame.draw.rect(screen, gray, source_lang_display)
+    screen.blit(source_lang_text, (source_lang_display.x + 10, source_lang_display.y + 10))
+    pygame.draw.rect(screen, gray, target_lang_display)
+    screen.blit(target_lang_text, (target_lang_display.x + 10, target_lang_display.y + 10))
+
+    # Speech recognition and translation
+    if not pygame.mixer.music.get_busy():
+        if is_recording:
+            recognized_text = recognize_speech(lang=source_lang)
+            if recognized_text:
+                try:
+                    # Translate if source language is not the target language
+                    if source_lang != target_lang:
+                        translated_text = translator.translate(recognized_text, src=source_lang, dest=target_lang).text
+                        print(f"Translated: {translated_text}")
+                        recognized_text = translated_text
+
+                    output_dir = os.path.dirname(os.path.abspath(__file__))
+                    output_file = f"output_{stamp}.mp3"
+                    output_path = os.path.join(output_dir, output_file)
+                    text_to_speech(recognized_text, output_dir, output_file, lang=target_lang[:2])
+
+                    pygame.mixer.music.load(output_path)
+                    pygame.mixer.music.play()
+
+                    # Add to translation history and save to file
+                    translation_history.append((recognized_text, translated_text))
+
+                    # Get today's date in YYYY-MM-DD format
+                    today = datetime.now().strftime("%Y-%m-%d")
+
+                    # Create file name with today's date
+                    history_file_name = f"translation_history_{today}.txt"
+
+                    with open(history_file_name, "a", encoding="utf-8") as f:
+                        f.write(f"{source_lang}: {recognized_text}, {target_lang}: {translated_text}\n")
+
+                    stamp = 1 - stamp
+                except Exception as e:
+                    print(f"Error during translation or speech synthesis: {e}")
+
+    # Update the display
+    pygame.display.flip()
+
+# Quit Pygame
+pygame.quit()

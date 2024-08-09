@@ -1,0 +1,4 @@
+vi: 停止, ja: 停止
+vi: 停止, ja: 停止
+vi: thoát khỏi ứng dụng, ja: アプリケーションを終了する
+ja: アプリケーションを終了する, vi: Thoát khỏi ứng dụng
